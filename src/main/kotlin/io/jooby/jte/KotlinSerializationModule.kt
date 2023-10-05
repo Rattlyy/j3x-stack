@@ -1,13 +1,14 @@
 package io.jooby.jte
 
 import io.jooby.*
+import it.rattly.j3x.ProvideSerialize
 import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.decodeFromStream
 import kotlinx.serialization.serializer
 import java.lang.reflect.Type
 import java.nio.charset.StandardCharsets
-import kotlin.reflect.full.createType
 
 class KotlinSerializationModule : Extension, MessageDecoder, MessageEncoder {
     private val json: Json
@@ -36,6 +37,14 @@ class KotlinSerializationModule : Extension, MessageDecoder, MessageEncoder {
 
     override fun encode(ctx: Context, value: Any): ByteArray {
         ctx.setDefaultResponseType(MediaType.json)
-        return json.encodeToString(serializer(value::class.createType()), value).toByteArray(StandardCharsets.UTF_8)
+        val serializer = when (value) {
+            is ProvideSerialize -> value.serializer()
+            value::class.typeParameters.isNotEmpty() ->
+                throw IllegalArgumentException("Cannot serialize types that have type parameters")
+
+            else -> serializer(value::class.java)
+        } as KSerializer<Any>
+
+        return json.encodeToString(serializer, value).toByteArray(StandardCharsets.UTF_8)
     }
 }
